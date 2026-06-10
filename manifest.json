@@ -1,0 +1,56 @@
+{
+	"manifest_version": "0.2",
+	"name": "shopware-admin-mcp",
+	"display_name": "Shopware Admin MCP",
+	"version": "0.1.0",
+	"description": "Shopware 6 Admin API für Claude: Produkte, Kategorien, CMS, Preise, Bestellungen — mit Audit-Log, Rollback und DSGVO-Schutz.",
+	"author": {
+		"name": "Martin Kieris"
+	},
+	"server": {
+		"type": "node",
+		"entry_point": "dist/index.js",
+		"mcp_config": {
+			"command": "node",
+			"args": ["${__dirname}/dist/index.js"],
+			"env": {
+				"SHOPWARE_API_URL": "${user_config.shopware_api_url}",
+				"SHOPWARE_API_CLIENT_ID": "${user_config.client_id}",
+				"SHOPWARE_API_CLIENT_SECRET": "${user_config.client_secret}",
+				"MCP_USER_LABEL": "${user_config.user_label}"
+			}
+		}
+	},
+	"user_config": {
+		"shopware_api_url": {
+			"type": "string",
+			"title": "Shopware-URL (Staging)",
+			"description": "Die Staging-URL bekommst du von Martin. Niemals die Live-Shop-URL eintragen!",
+			"required": true
+		},
+		"client_id": {
+			"type": "string",
+			"title": "Client-ID",
+			"description": "Client-ID deiner persönlichen Shopware-Integration.",
+			"required": true
+		},
+		"client_secret": {
+			"type": "string",
+			"title": "Client-Secret",
+			"description": "Client-Secret deiner persönlichen Shopware-Integration. Wird sicher im Windows-Anmeldeinformationsspeicher abgelegt.",
+			"sensitive": true,
+			"required": true
+		},
+		"user_label": {
+			"type": "string",
+			"title": "Dein Name (für das Audit-Log)",
+			"description": "Vor- und Nachname — so erscheinen deine Änderungen im Audit-Log.",
+			"required": true
+		}
+	},
+	"compatibility": {
+		"runtimes": {
+			"node": ">=18"
+		}
+	}
+}

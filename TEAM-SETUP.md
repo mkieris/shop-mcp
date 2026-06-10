@@ -1,78 +1,31 @@
 # Team-Setup: Shopware Admin MCP
 
-Anleitung für Teammitglieder, um den MCP-Server lokal einzurichten.
-**Wichtig: Der Test läuft auf STAGING — alle CMS-/Theme-/Produkt-Änderungen sind sofort im Shop sichtbar.**
+**Wichtig: Der Test läuft auf STAGING — alle CMS-/Theme-/Produkt-Änderungen
+sind sofort im (Staging-)Shop sichtbar.**
 
-## 1. Voraussetzungen
+## Installation (3 Minuten, keine Vorkenntnisse nötig)
 
-- [Node.js 22+](https://nodejs.org) (LTS)
-- [Git für Windows](https://git-scm.com/download/win)
-- Claude Code (Desktop-App oder CLI)
+Du brauchst nur die **Claude-Desktop-App** — kein Node.js, kein Git.
 
-## 2. Code holen
+1. **Datei holen**: `shopware-admin-mcp.mcpb` vom SharePoint herunterladen
+   (Link bekommst du von Martin).
+2. **Doppelklick** auf die Datei — die Claude-App öffnet sich und zeigt
+   den Installations-Dialog. Auf „Installieren" klicken.
+3. **Formular ausfüllen** (Werte bekommst du von Martin):
+   - **Shopware-URL (Staging)** — niemals die Live-Shop-URL!
+   - **Client-ID** — von deiner persönlichen Integration
+   - **Client-Secret** — von deiner persönlichen Integration
+   - **Dein Name** — Vor- und Nachname (so erscheinen deine Änderungen im Audit-Log)
 
-```bash
-git clone https://github.com/mkieris/shop-mcp.git
-cd shop-mcp
-npm install
-```
+Danach Claude-App neu starten — fertig.
 
-`npm install` kompiliert den Server automatisch nach `dist/` (prepare-Script).
+> Jedes Teammitglied bekommt eine **eigene** Integration (legt Martin im
+> Shopware Admin an). Zugangsdaten niemals untereinander teilen — sonst
+> ist im Audit-Log nicht mehr erkennbar, wer was geändert hat.
 
-**Updates später:** `git pull` und danach erneut `npm install`.
+## Erster Funktionstest
 
-## 3. Eigene Shopware-Integration anlegen
-
-Jedes Teammitglied braucht eine **eigene** Integration — darüber werden alle
-Änderungen im Audit-Log dir persönlich zugeordnet. Niemals Zugangsdaten teilen!
-
-1. Shopware Admin → Einstellungen → System → **Integrationen** → „Integration anlegen"
-2. Name: `mcp_vorname_nachname` (z. B. `mcp_anna_kraus`)
-3. Berechtigungen gemäß Tabelle in der [README](README.md#permissions)
-4. **Client-ID und Client-Secret kopieren** (Secret wird nur einmal angezeigt!)
-
-## 4. MCP-Server in Claude Code registrieren
-
-```bash
-claude mcp add shopware-admin-mcp \
-  --env SHOPWARE_API_URL=https://DEINE-STAGING-URL \
-  --env SHOPWARE_API_CLIENT_ID=deine-client-id \
-  --env SHOPWARE_API_CLIENT_SECRET=dein-client-secret \
-  --env MCP_USER_LABEL="Vorname Nachname" \
-  -- node C:/pfad/zu/shop-mcp/dist/index.js
-```
-
-`MCP_USER_LABEL` ist dein Anzeigename im Audit-Log.
-
-Optional für zentrales Audit-Log (alle Änderungen des Teams in einer Datei):
-
-```
---env AUDIT_DIR=\\netzlaufwerk\mcp-audit
-```
-
-## 5. Sicherheitsregeln
-
-- `.env`-Dateien, Client-Secrets und der Ordner `.cache/` (enthält OAuth-Tokens)
-  dürfen **niemals** geteilt, hochgeladen oder committet werden.
-- Bei mehr als 10 Objekten gleichzeitig verlangen die Tools `confirm_bulk: true` —
-  das ist Absicht (Schutz vor Massen-Änderungen).
-- Jede Schreiboperation liefert eine `operationId` zurück. Damit kann eine
-  Änderung über `audit_rollback` rückgängig gemacht werden.
-- **Achtung:** `cms_page_delete` / `cms_section_delete` / `cms_block_delete`
-  sind NICHT zurückrollbar. Vor dem Löschen lieber zweimal prüfen.
-
-## 6. Bekannte Einschränkungen (Known Issues)
-
-| Problem | Workaround |
-|---|---|
-| `product_list` mit `all: true` liefert nur 500 Produkte | Manuell paginieren: `all: false`, `page: 1..N`, `limit: 500` |
-| `topLevelOnly` filtert Varianten nicht zuverlässig | Alle laden, lokal nach `parentId === null` filtern |
-| `dal_aggregate` kann nicht auf NULL filtern, keine Ranges, kein OR | Separate Aufrufe bzw. `contains`/`not_contains`-Tricks |
-| Kunden-/Adressdaten sind absichtlich gesperrt (DSGVO) | Kein Workaround — das ist gewollt |
-
-## 7. Erster Funktionstest
-
-In Claude Code fragen:
+In Claude fragen:
 
 > „Liste die Sales Channels des Shops auf"
 
@@ -80,4 +33,50 @@ Wenn eine Liste mit Namen und Domains zurückkommt, läuft alles. Danach:
 
 > „Zeige die letzten 5 Einträge aus dem Audit-Log"
 
-— dort sollte dein `MCP_USER_LABEL` als Benutzer erscheinen.
+— dort sollte dein Name als Benutzer erscheinen.
+
+## Updates
+
+Wenn Martin eine neue Version ankündigt: neue `.mcpb`-Datei vom SharePoint
+laden, Doppelklick, installieren. Deine eingegebenen Zugangsdaten bleiben
+erhalten.
+
+## Spielregeln
+
+- Bei mehr als 10 Objekten gleichzeitig verlangen die Tools
+  `confirm_bulk: true` — das ist Absicht (Schutz vor Massen-Änderungen).
+- Jede Schreiboperation liefert eine `operationId` zurück. Damit kann eine
+  Änderung per „Rolle Operation X zurück" rückgängig gemacht werden.
+- **Achtung:** Das Löschen von CMS-Seiten/-Sektionen/-Blöcken ist NICHT
+  zurückrollbar. Vor dem Löschen lieber zweimal prüfen.
+- Kunden- und Adressdaten sind absichtlich gesperrt (DSGVO) — das ist kein
+  Fehler, sondern gewollt.
+
+## Bekannte Einschränkungen (Known Issues)
+
+| Problem | Workaround |
+|---|---|
+| `product_list` mit `all: true` liefert nur 500 Produkte | Manuell paginieren: `all: false`, `page: 1..N`, `limit: 500` |
+| `topLevelOnly` filtert Varianten nicht zuverlässig | Alle laden, lokal nach `parentId === null` filtern |
+| `dal_aggregate` kann nicht auf NULL filtern, keine Ranges, kein OR | Separate Aufrufe bzw. `contains`/`not_contains`-Tricks |
+
+---
+
+## Für Entwickler / Maintainer
+
+Quellcode und Versionierung: https://github.com/mkieris/shop-mcp
+
+```powershell
+git clone https://github.com/mkieris/shop-mcp.git
+cd shop-mcp
+npm install          # baut automatisch nach dist/
+```
+
+Neues Bundle nach Code-Änderungen bauen:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-bundle.ps1
+```
+
+Erzeugt `shopware-admin-mcp.mcpb` (nur Produktions-Abhängigkeiten, keine
+Secrets) — diese Datei auf SharePoint legen.

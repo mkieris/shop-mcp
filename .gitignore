@@ -178,3 +178,5 @@ dist
 SwagAdminMCP.zip
 audit/
 logs/
+bundle-build/
+*.mcpb
