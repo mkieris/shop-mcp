@@ -64,6 +64,24 @@ erhalten.
 
 ## Für Entwickler / Maintainer
 
+### Integrationen fürs Team anlegen
+
+Pro Teammitglied: Einstellungen → System → Integrationen → neue Integration
+(`mcp_vorname_nachname`).
+
+**Wichtig:** Den „Administrator"-Schalter NICHT verwenden — er wird auf
+manchen Shopware-Versionen nicht gespeichert (Bug, shopware/shopware#16979,
+Erfolgsmeldung erscheint trotzdem!). Stattdessen einmalig eine ACL-Rolle
+`MCP-Vollzugriff` anlegen (Benutzer & Rechte → Rollen, Bereiche: Katalog,
+Inhalte, Medien, Bestellungen, Einstellungen) und diese Rolle jeder
+MCP-Integration zuweisen — Rollen-Zuweisungen sind vom Bug nicht betroffen.
+
+Bei „401 Client authentication failed": Schlüsselpaar in der Integration neu
+generieren und BEIDE Werte (Zugangs-ID + Sicherheitsschlüssel) frisch in die
+Erweiterungs-Konfiguration eintragen.
+
+### Quellcode
+
 Quellcode und Versionierung: https://github.com/mkieris/shop-mcp
 
 ```powershell
