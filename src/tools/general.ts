@@ -3,6 +3,12 @@ import type { HttpClient } from "@shopware-ag/app-server-sdk";
 import { EntityRepository } from "@shopware-ag/app-server-sdk/helper/admin-api";
 import { Criteria } from "@shopware-ag/app-server-sdk/helper/criteria";
 import z from "zod";
+import {
+	BLOCKED_ENTITIES,
+	gdprRefusal,
+	isBlockedEntity,
+	isBlockedFieldPath,
+} from "../gdpr.js";
 import { serializeLLM } from "../shopware.js";
 
 export function fetchEntitySchemaListEntities(
@@ -11,12 +17,14 @@ export function fetchEntitySchemaListEntities(
 ) {
 	server.tool("fetch_entity_list", {}, async () => {
 		const response = await httpClient.get("_info/entity-schema.json");
+		const allEntities = Object.keys(response.body || {});
+		const visible = allEntities.filter((name) => !BLOCKED_ENTITIES.has(name));
 
 		return {
 			content: [
 				{
 					type: "text",
-					text: JSON.stringify(Object.keys(response.body || {})),
+					text: JSON.stringify(visible),
 				},
 			],
 		};
@@ -34,6 +42,12 @@ export function fetchEntitySchema(server: McpServer, httpClient: HttpClient) {
 				),
 		},
 		async (data) => {
+			if (isBlockedEntity(data.entity)) {
+				return gdprRefusal(
+					`schema for "${data.entity}" is not exposed (personal data entity).`,
+				);
+			}
+
 			const response = await httpClient.get("_info/entity-schema.json");
 
 			return {
@@ -79,6 +93,28 @@ export function dalAggregate(server: McpServer, httpClient: HttpClient) {
 				.optional(),
 		},
 		async (data) => {
+			if (isBlockedEntity(data.entity)) {
+				return gdprRefusal(
+					`entity "${data.entity}" contains personal data.`,
+				);
+			}
+
+			if (isBlockedFieldPath(data.field)) {
+				return gdprRefusal(
+					`field path "${data.field}" touches personal data (PII).`,
+				);
+			}
+
+			if (data.filter) {
+				for (const f of data.filter) {
+					if (isBlockedFieldPath(f.field)) {
+						return gdprRefusal(
+							`filter field "${f.field}" touches personal data (PII).`,
+						);
+					}
+				}
+			}
+
 			const orderRepository = new EntityRepository<{ id: string }>(
 				httpClient,
 				data.entity,

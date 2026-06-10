@@ -176,3 +176,5 @@ dist
 .env*
 !.env.example
 SwagAdminMCP.zip
+audit/
+logs/

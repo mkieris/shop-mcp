@@ -3,6 +3,7 @@ import type { HttpClient } from "@shopware-ag/app-server-sdk";
 import { EntityRepository } from "@shopware-ag/app-server-sdk/helper/admin-api";
 import { Criteria } from "@shopware-ag/app-server-sdk/helper/criteria";
 import z from "zod";
+import { withAudit } from "../audit.js";
 import { serializeLLM } from "../shopware.js";
 
 export function themeConfigGet(server: McpServer, client: HttpClient) {
@@ -78,28 +79,41 @@ export function themeConfigChange(server: McpServer, client: HttpClient) {
 				.describe("The ID of the media object to use as logo"),
 		},
 		async (data) => {
-			await client.patch(`_action/theme/${data.themeId}?validate=true`, {
-				config: {
-					...(data.brandPrimaryColor && {
-						"sw-color-brand-primary": { value: data.brandPrimaryColor },
-					}),
-					...(data.brandSecondaryColor && {
-						"sw-color-brand-secondary": { value: data.brandSecondaryColor },
-					}),
-					...(data.brandBackgroundColor && {
-						"sw-background-color": { value: data.brandBackgroundColor },
-					}),
-					...(data.logoId && { "sw-logo-desktop": { value: data.logoId } }),
-					...(data.logoId && { "sw-logo-tablet": { value: data.logoId } }),
-					...(data.logoId && { "sw-logo-mobile": { value: data.logoId } }),
+			const config = {
+				...(data.brandPrimaryColor && {
+					"sw-color-brand-primary": { value: data.brandPrimaryColor },
+				}),
+				...(data.brandSecondaryColor && {
+					"sw-color-brand-secondary": { value: data.brandSecondaryColor },
+				}),
+				...(data.brandBackgroundColor && {
+					"sw-background-color": { value: data.brandBackgroundColor },
+				}),
+				...(data.logoId && { "sw-logo-desktop": { value: data.logoId } }),
+				...(data.logoId && { "sw-logo-tablet": { value: data.logoId } }),
+				...(data.logoId && { "sw-logo-mobile": { value: data.logoId } }),
+			};
+
+			const { event } = await withAudit(
+				{
+					tool: "theme_config_change",
+					entityType: "theme",
+					entityId: data.themeId,
+					sku: null,
+					payloadIn: { salesChannelId: data.salesChannelId, config },
+					payloadBefore: null, // theme config diff not snapshotted — log-only
 				},
-			});
+				() =>
+					client.patch(`_action/theme/${data.themeId}?validate=true`, {
+						config,
+					}),
+			);
 
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Changed the theme color, it may take a few minutes until the changes are visible.`,
+						text: `Changed the theme color, it may take a few minutes until the changes are visible. operationId: ${event.operationId} (Theme-Rollback nur manuell)`,
 					},
 				],
 			};

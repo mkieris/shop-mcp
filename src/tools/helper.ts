@@ -30,7 +30,7 @@ export async function getOrCreateTaxByRate(
 
 	await taxRepository.upsert([
 		{
-			id: uuid(),
+			id: taxId,
 			name: `Tax ${taxRate}`,
 			taxRate: taxRate,
 		},

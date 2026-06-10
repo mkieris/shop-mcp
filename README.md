@@ -134,6 +134,50 @@ npm run type-check
 | Order Delivery           | ✅   | ✅     | ✅     | ✅     |
 | Order Transaction        | ✅   | ✅     | ✅     | ✅     |
 
+## GDPR / DSGVO Compliance
+
+This server is hardened so that an AI assistant cannot read, aggregate or
+export personally identifiable information (PII) through the Shopware Admin
+API. The guarantees are enforced in code (`src/gdpr.ts`), not just by tool
+description.
+
+### What is blocked
+
+- **Entity access** — fully blocked in `dal_aggregate` and
+  `fetch_single_entity_schema`, and hidden from `fetch_entity_list`:
+  `customer`, `customer_address`, `customer_recovery`, `customer_tag`,
+  `customer_wishlist`, `customer_wishlist_product`, `order_customer`,
+  `order_address`, `newsletter_recipient`, `user`, `user_recovery`,
+  `user_access_key`, `acl_user_role`, `log_entry`.
+- **Field paths** — `dal_aggregate` rejects any `field` or `filter.field`
+  containing PII paths (`orderCustomer.*`, `billingAddress.*`,
+  `shippingAddress.*`, `*.email`, `*.firstName`, `*.lastName`, `*.phone`,
+  `*.street`, `*.zipcode`, `*.birthday`, `*.vatIds`, IP/remoteAddress, etc.).
+  This prevents `terms` aggregation from leaking customer emails via the
+  allowed `order` entity.
+- **Order tools** — `order_list`, `order_detail` and `order_update` never
+  return or accept customer names, emails, addresses or shipping data.
+  `order_update` is limited to state transitions.
+
+### Logging
+
+- `logger.logError` records only safe response metadata (`statusCode`,
+  `statusText`). Response bodies and headers are **never** written to disk –
+  the Shopware API can echo customer emails in validation errors, and those
+  must not land in the log file.
+- The log file lives at `<package>/logs/mcp-server.log` (rotated at 5 MB,
+  3 rotations). The token cache is at `<package>/.cache/token-cache.json`.
+  Both stay on the host running the MCP server.
+
+### What is NOT a GDPR boundary
+
+These tools still touch data covered by other compliance regimes – use them
+deliberately:
+
+- `theme_config_change`, `cms_*`, `category_*`, `product_*` write to the
+  live shop and are visible to all customers.
+- `upload_media_by_url` fetches the URL from the host running this server.
+
 ## License
 
 MIT License - see LICENSE file for details.

@@ -3,7 +3,9 @@ import type { HttpClient } from "@shopware-ag/app-server-sdk";
 import { EntityRepository } from "@shopware-ag/app-server-sdk/helper/admin-api";
 import { Criteria } from "@shopware-ag/app-server-sdk/helper/criteria";
 import z from "zod";
+import { withAudit } from "../audit.js";
 import { serializeLLM } from "../shopware.js";
+import { snapshotOrderState } from "../snapshot.js";
 
 const orderStatuses = [
 	"open",
@@ -17,11 +19,6 @@ type OrderListItem = {
 	orderNumber: string;
 	orderDateTime: string;
 	amountTotal: number;
-	orderCustomer: {
-		firstName: string;
-		lastName: string;
-		email: string;
-	};
 	primaryOrderDelivery: {
 		stateMachineState: {
 			technicalName: string;
@@ -49,7 +46,7 @@ export function orderList(server: McpServer, httpClient: HttpClient) {
 			term: z
 				.string()
 				.optional()
-				.describe("Search term to search in order number and customer email"),
+				.describe("Search term to search in order number"),
 			filters: z
 				.object({
 					status: z
@@ -73,9 +70,6 @@ export function orderList(server: McpServer, httpClient: HttpClient) {
 				"orderNumber",
 				"orderDateTime",
 				"amountTotal",
-				"orderCustomer.firstName",
-				"orderCustomer.lastName",
-				"orderCustomer.email",
 				"primaryOrderDelivery.stateMachineState.technicalName",
 				"primaryOrderTransaction.stateMachineState.technicalName",
 				"stateMachineState.technicalName",
@@ -114,38 +108,11 @@ type OrderDetailItem = {
 	orderNumber: string;
 	orderDateTime: string;
 	amountTotal: number;
-	orderCustomer: {
-		firstName: string;
-		lastName: string;
-		email: string;
-	};
-	billingAddress: {
-		firstName: string;
-		lastName: string;
-		company: string;
-		street: string;
-		city: string;
-		zipcode: string;
-		country: {
-			name: string;
-		};
-	};
 	primaryOrderDelivery: {
 		stateMachineState: {
 			technicalName: string;
 		};
 		trackingCodes: string[];
-		shippingOrderAddress: {
-			firstName: string;
-			lastName: string;
-			company: string;
-			street: string;
-			city: string;
-			zipcode: string;
-			country: {
-				name: string;
-			};
-		};
 	};
 	primaryOrderTransaction: {
 		stateMachineState: {
@@ -186,30 +153,11 @@ export function orderDetail(server: McpServer, httpClient: HttpClient) {
 				"orderNumber",
 				"orderDateTime",
 				"amountTotal",
-				"orderCustomer.firstName",
-				"orderCustomer.lastName",
-				"orderCustomer.email",
 				"primaryOrderDelivery.stateMachineState.technicalName",
+				"primaryOrderDelivery.trackingCodes",
 				"primaryOrderTransaction.stateMachineState.technicalName",
 				"stateMachineState.technicalName",
-				"billingAddress.firstName",
-				"billingAddress.lastName",
-				"billingAddress.company",
-				"billingAddress.street",
-				"billingAddress.city",
-				"billingAddress.zipcode",
-				"billingAddress.country.name",
-				"primaryOrderDelivery.trackingCodes",
-				"primaryOrderDelivery.shippingOrderAddress.firstName",
-				"primaryOrderDelivery.shippingOrderAddress.lastName",
-				"primaryOrderDelivery.shippingOrderAddress.company",
-				"primaryOrderDelivery.shippingOrderAddress.street",
-				"primaryOrderDelivery.shippingOrderAddress.city",
-				"primaryOrderDelivery.shippingOrderAddress.zipcode",
-				"primaryOrderDelivery.shippingOrderAddress.country.name",
-
 				"currency.name",
-
 				"lineItems.referencedId",
 				"lineItems.label",
 				"lineItems.quantity",
@@ -232,7 +180,7 @@ export function orderDetail(server: McpServer, httpClient: HttpClient) {
 	);
 }
 
-// update order status, shipping address, billing address
+// update order status only (address updates removed for GDPR/DSGVO compliance)
 export function orderUpdate(server: McpServer, httpClient: HttpClient) {
 	server.tool(
 		"order_update",
@@ -240,126 +188,28 @@ export function orderUpdate(server: McpServer, httpClient: HttpClient) {
 			id: z.string().describe("The ID of the order to update"),
 			status: z
 				.enum(["cancel", "reopen", "in_progress", "completed"])
-				.describe("The new status of the order")
-				.optional(),
-			billingAddress: z
-				.object({
-					firstName: z
-						.string()
-						.describe("The first name of the billing address")
-						.optional(),
-					lastName: z
-						.string()
-						.describe("The last name of the billing address")
-						.optional(),
-					company: z
-						.string()
-						.describe("The company name of the billing address")
-						.optional(),
-					street: z
-						.string()
-						.describe("The street of the billing address")
-						.optional(),
-					city: z
-						.string()
-						.describe("The city of the billing address")
-						.optional(),
-					zipcode: z
-						.string()
-						.describe("The zipcode of the billing address")
-						.optional(),
-					countryId: z
-						.string()
-						.describe(
-							"The country ID of the billing address, use country_list to get the id",
-						)
-						.optional(),
-				})
-				.optional(),
-			shippingAddress: z
-				.object({
-					firstName: z
-						.string()
-						.describe("The first name of the shipping address")
-						.optional(),
-					lastName: z
-						.string()
-						.describe("The last name of the shipping address")
-						.optional(),
-					company: z
-						.string()
-						.describe("The company name of the shipping address")
-						.optional(),
-					street: z
-						.string()
-						.describe("The street of the shipping address")
-						.optional(),
-					city: z
-						.string()
-						.describe("The city of the shipping address")
-						.optional(),
-					zipcode: z
-						.string()
-						.describe("The zipcode of the shipping address")
-						.optional(),
-					countryId: z
-						.string()
-						.describe(
-							"The country ID of the shipping address, use country_list to get the id",
-						)
-						.optional(),
-				})
-				.optional(),
+				.describe("The new status of the order"),
 		},
 		async (data) => {
-			if (data.status) {
-				await httpClient.post(`/_action/order/${data.id}/state/${data.status}`);
-			}
-
-			if (data.billingAddress) {
-				const orderRepo = new EntityRepository<{ billingAddressId: string }>(
-					httpClient,
-					"order",
-				);
-				const order = await orderRepo.search(new Criteria([data.id]));
-
-				if (order.total === 0) {
-					throw new Error("Order not found");
-				}
-
-				const addressRepo = new EntityRepository(httpClient, "order_address");
-				await addressRepo.upsert([
-					{
-						id: order.data[0].billingAddressId,
-						...data.billingAddress,
-					},
-				]);
-			}
-
-			if (data.shippingAddress) {
-				const orderRepo = new EntityRepository<{
-					primaryOrderDelivery: { shippingOrderAddressId: string };
-				}>(httpClient, "order");
-				const order = await orderRepo.search(new Criteria([data.id]));
-
-				if (order.total === 0) {
-					throw new Error("Order not found");
-				}
-
-				const addressRepo = new EntityRepository(httpClient, "order_address");
-				await addressRepo.upsert([
-					{
-						id: order.data[0].primaryOrderDelivery.shippingOrderAddressId,
-						...data.shippingAddress,
-					},
-				]);
-			}
+			const before = await snapshotOrderState(httpClient, data.id);
+			const { event } = await withAudit(
+				{
+					tool: "order_update",
+					entityType: "order_state",
+					entityId: data.id,
+					sku: (before?.orderNumber as string) ?? null,
+					payloadIn: { status: data.status },
+					payloadBefore: before,
+				},
+				() =>
+					httpClient.post(`/_action/order/${data.id}/state/${data.status}`),
+			);
 
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Order ${data.id} updated successfully.`,
+						text: `Order ${data.id} status updated to ${data.status}. operationId: ${event.operationId} (Hinweis: Order-Status-Rollback nur über erneute Status-Transition möglich)`,
 					},
 				],
 			};
